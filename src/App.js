@@ -1,218 +1,22 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import Navigation from './components/Navigation';
 import Field from './components/Field';
 import Button from './components/Button';
 import ManipulationPanel from './components/ManipulationPanel';
-import { initFields, getFoodPosition } from './utils';
-
-const defaultSideLength = 35
-const defaultDifficulty = 3
-const defaultInterval = 100;
-const initialPosition = { x: 17, y: 17 }
-
-const Difficulty = [1000, 500, 100, 50, 10]
-
-const GameStatus = Object.freeze({
-  init: 'init',
-  playing: 'playing',
-  suspended: 'suspended',
-  gameover: 'gameover',
-})
-
-const Direction = Object.freeze({
-  switch: 'switch',
-  up: 'up',
-  right: 'right',
-  left: 'left',
-  down: 'down',
-})
-
-// 真逆方向進行をNGとするマッピング
-const OppositeDirection = Object.freeze({
-  up: 'down',
-  right: 'left',
-  left: 'right',
-  down: 'up',
-})
-
-// 移動時の座標の増減
-const Delta = Object.freeze({
-  up: { x: 0, y: -1 },
-  right: { x: 1, y: 0 },
-  left: { x: -1, y: 0 },
-  down: { x: 0, y: 1 },
-})
-
-const DirectionKeyCodeMap = Object.freeze({
-  32: Direction.switch,
-  37: Direction.left,
-  38: Direction.up,
-  39: Direction.right,
-  40: Direction.down,
-})
-
-const initialValues = initFields(defaultSideLength, initialPosition)
-
-let timer = undefined
-
-const unsubscribe = () => {
-  if (!timer) return
-  clearInterval(timer)
-}
-
-const isCollision = (fieldSize, position) => {
-  if (position.y < 0 || position.x < 0) {
-    return true
-  }
-
-  if (position.y > fieldSize - 1 || position.x > fieldSize - 1) {
-    return true
-  }
-
-  return false
-}
-
-const isEatingMyself = (fields, position) => {
-  return fields[position.y][position.x] === 'snake'
-}
+import useSnakeGame from './hooks/useSnakeGame';
 
 function App() {
-  const [fields, setFields] = useState(initialValues)
-  const [body, setBody] = useState([])
-  const [status, setStatus] = useState(GameStatus.init)
-  const [direction, setDirection] = useState(Direction.up)
-  const [difficulty, setDifficulty] = useState(defaultDifficulty)
-  const [tick, setTick] = useState(0)
-
-  /* ゲームの中の時間を管理 */
-  useEffect(() => {
-    setBody([initialPosition])
-    //test code
-    // setBody(
-    //   new Array(15).fill('').map((_item, index) => ({x: 17, y: 17 + index }))
-    // )
-
-    const interval = Difficulty[difficulty - 1]
-
-    timer = setInterval(() => {
-      setTick(tick => tick + 1)
-    }, interval)
-
-    return unsubscribe
-  }, [difficulty])
-
-  /* tickが更新されている限りスネークを動かす */
-  useEffect(() => {
-    if (body.length === 0 || status !== GameStatus.playing) {
-      return
-    }
-
-    const canContinue = handleMoving()
-
-    if(!canContinue) {
-      unsubscribe()
-      setStatus(GameStatus.gameover)
-    }
-  }, [tick])
-
-  const onStart = () => setStatus(GameStatus.playing)
-
-  const onStop = () => setStatus(GameStatus.suspended)
-
-  const onRestart = () => {
-    timer = setInterval(() => {
-      setTick(tick => tick + 1)
-    }, defaultInterval)
-
-    setDirection(Direction.up)
-    setStatus(GameStatus.init)
-    setBody([initialPosition])
-    setFields(initFields(defaultSideLength, initialPosition))
-  }
-
-  const onChangeDirection = useCallback((newDirection) => {
-    if (status !== GameStatus.playing) {
-      if (newDirection === Direction.switch) {
-        status === GameStatus.gameover && onRestart()
-        status === GameStatus.init && onStart()
-        status === GameStatus.suspended && onStart()
-      }
-
-      return direction
-    }
-
-    if (OppositeDirection[direction] === newDirection
-      || direction === newDirection
-    ) {
-      return
-    }
-
-    if (newDirection === Direction.switch) {
-      onStop()
-    } else {
-      setDirection(newDirection)
-    }
-  }, [direction, status])
-
-  const onChangeDifficulty = useCallback((difficulty) => {
-    if (status !== GameStatus.init) {
-      return
-    }
-
-    if (difficulty < 1 || difficulty > Difficulty.length) {
-      return
-    }
-
-    setDifficulty(difficulty)
-  }, [status, difficulty])
-
-  /* キー押下に対応させる */
-  useEffect(() => {
-    const handleKeyDown = e => {
-      const newDirection = DirectionKeyCodeMap[e.keyCode]
-
-      if (!newDirection) {
-        return
-      }
-
-      onChangeDirection(newDirection)
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onChangeDirection])
-
-  const handleMoving = () => {
-    const {x, y} = body[0]
-    const delta = Delta[direction]
-
-    const newPosition = {
-      x: x + delta.x,
-      y: y + delta.y,
-    }
-
-    if (isCollision(fields.length, newPosition)
-      || isEatingMyself(fields, newPosition)
-    ) {
-      return false
-    }
-
-    const newBody = [...body]
-
-    if(fields[newPosition.y][newPosition.x] !== 'food') {
-      const removingTrack = newBody.pop()
-      fields[removingTrack.y][removingTrack.x] = ''
-    } else {
-      const food = getFoodPosition(fields.length, [...newBody, newPosition])
-      fields[food.y][food.x] = 'food'
-    }
-
-    fields[newPosition.y][newPosition.x] = 'snake'
-    newBody.unshift(newPosition)
-    setBody(newBody)
-    setFields(fields)
-    return true
-  }
+  const {
+    body,
+    difficulty,
+    fields,
+    status,
+    start,
+    stop,
+    reload,
+    updateDirection,
+    updateDifficulty,
+  } = useSnakeGame()
 
   return (
     <div className="App">
@@ -223,7 +27,7 @@ function App() {
         <Navigation
           length={body.length}
           difficulty={difficulty}
-          onChangeDifficulty={onChangeDifficulty}
+          onChangeDifficulty={updateDifficulty}
         />
       </header>
       <main className='main'>
@@ -232,11 +36,11 @@ function App() {
       <footer className='footer'>
         <Button
           status={status}
-          onStop={onStop}
-          onStart={onStart}
-          onRestart={onRestart}
+          onStop={stop}
+          onStart={start}
+          onRestart={reload}
         />
-        <ManipulationPanel onChange={onChangeDirection} />
+        <ManipulationPanel onChange={updateDirection} />
       </footer>
     </div>
   );

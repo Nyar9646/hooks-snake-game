@@ -27,3 +27,19 @@ export const initFields = (fieldSize, snake) => {
     fields[food.y][food.x] = 'food'
     return fields
 }
+
+export　const isCollision = (fieldSize, position) => {
+    if (position.y < 0 || position.x < 0) {
+        return true
+    }
+
+    if (position.y > fieldSize - 1 || position.x > fieldSize - 1) {
+        return true
+    }
+
+    return false
+}
+
+export const isEatingMyself = (fields, position) => {
+    return fields[position.y][position.x] === 'snake'
+}
